@@ -1,0 +1,68 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment folders
+.env
+.venv/
+venv/
+env/
+ENV/
+
+# IDE / Editor settings
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Build and distribution folders
+build/
+dist/
+*.egg-info/
+
+# PyInstaller
+*.spec
+
+# Data files
+*.csv
+*.tsv
+*.json
+*.zip
+*.tar
+*.gz
+
+# Model files
+*.h5
+*.pth
+*.pt
+*.tflite
+*.onnx
+
+# Audio/video/temp data
+*.wav
+*.mp3
+*.mp4
+
+# Streamlit and Gradio cache
+.streamlit/
+gradio_cached_examples/
+
+# __pycache__ in subfolders
+*/__pycache__/
+
+
+api/uploaded_images/
+others/
