@@ -28,13 +28,7 @@ Thumbs.db
 *.tmp
 *.swp
 
-# Build and distribution folders
-build/
-dist/
-*.egg-info/
 
-# PyInstaller
-*.spec
 
 # Data files
 *.csv
@@ -43,7 +37,9 @@ dist/
 *.zip
 *.tar
 *.gz
-
+*.json
+*.pickle
+*.pkl
 # Model files
 *.h5
 *.pth
