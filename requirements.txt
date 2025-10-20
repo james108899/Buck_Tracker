@@ -8,3 +8,5 @@ mysql-connector-python
 pyngrok
 python-dotenv
 google-cloud-storage
+gunicorn
+waitress

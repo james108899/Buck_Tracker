@@ -1,7 +1,10 @@
-from flask import Blueprint, request, jsonify,url_for,send_from_directory
+import warnings
+warnings.filterwarnings("ignore", message="Corrupt JPEG data")
+
+from flask import Blueprint, request, jsonify,url_for,send_from_directory, make_response
 import cv2, uuid, os
 import numpy as np
-from datetime import datetime
+from datetime import datetime,timedelta
 import json ,hashlib ,mysql.connector
 
 from PIL import Image, ExifTags   # for metadata
@@ -24,8 +27,25 @@ def get_db(buffered=False):
 # Serve uploaded images
 @detection_bp.route("/uploads/<filename>")
 def serve_upload(filename):
-    return send_from_directory(UPLOAD_DIR, filename)
+    # Get full file path
+    file_path = os.path.join(UPLOAD_DIR, filename)
+    
+    # Ensure the file exists
+    if not os.path.exists(file_path):
+        return {"error": "File not found"}, 404
 
+    # Serve the file
+    response = make_response(send_from_directory(UPLOAD_DIR, filename))
+    
+    #  Add CORS header so browsers can safely display image from ngrok
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+    
+    # Optional: set cache control for faster loading
+    response.headers['Cache-Control'] = 'public, max-age=3600'
+    
+    return response
 # ---------------- Image Upload & Detection ---------------- #
 @detection_bp.route("/process-images", methods=["POST"])
 def process_images():
@@ -101,8 +121,14 @@ def process_images():
                 _, buffer = cv2.imencode(ext, frame)
                 blob = gcs_bucket.blob(GCS_UPLOAD_DIR + filename)
                 blob.upload_from_string(buffer.tobytes(), content_type=f"image/{ext.strip('.')}")
-                blob.make_public()
-                full_url = blob.public_url
+                full_url = blob.generate_signed_url(
+                                                        version="v4",
+                                                        expiration=timedelta(days=7),  
+                                                        method="GET"
+                                                    )
+                
+                print("✅ Uploaded to GCS. Temporary URL:", full_url)
+
 
             results_list.append({
                 "image_name": filename,

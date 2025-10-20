@@ -1,3 +1,5 @@
+import warnings
+warnings.filterwarnings("ignore", message="Corrupt JPEG data")
 from api import create_app
 from pyngrok import ngrok
 from dotenv import load_dotenv
@@ -15,9 +17,9 @@ app = create_app()
 
 
 if __name__ == "__main__":
-    # # Open a public ngrok tunnel to the Flask app
+    # Open a public ngrok tunnel to the Flask app
     # public_url = ngrok.connect(5000)
     # print(f" * ngrok tunnel \"{public_url}\" -> \"http://127.0.0.1:5000\"")
 
     # Run the Flask app
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    app.run(host="0.0.0.0", port=8080, debug=True)

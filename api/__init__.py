@@ -18,7 +18,10 @@ api_bp.register_blueprint(analytics_bp, url_prefix="/analytics")
 
 def create_app():
     app = Flask(__name__)
-    CORS(app)
+    CORS(app,resources={r"/*": {"origins": [
+    "https://www.daleandcompany.com",    # your Shopify store
+    "http://127.0.0.1:5000"              # local Flask
+]}})
 
     # Register main API blueprint
     app.register_blueprint(api_bp, url_prefix="/api")

@@ -3,6 +3,7 @@ import logging
 from ultralytics import YOLO
 from dotenv import load_dotenv
 from google.cloud import storage
+import torch
 
 # =========================================================
 # Load environment variables
@@ -120,7 +121,8 @@ MODEL_PATH = os.path.join(BASE_DIR, "walidlife_models", "best_deer_detection_ope
 logger.info("Loading YOLO model from %s", MODEL_PATH)
 
 try:
-    model = YOLO(MODEL_PATH)
+    model = YOLO(MODEL_PATH, task="detect")
+    # model.to("cpu")
     logger.info("YOLO model loaded successfully.")
 except Exception as e:
     logger.error("Failed to load YOLO model: %s", e)
