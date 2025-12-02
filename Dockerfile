@@ -1,25 +1,42 @@
+# ----------------------------
+# Stage 1: Build stage
+# ----------------------------
+FROM python:3.12-slim AS builder
 
-# Use a lightweight Python base image
+WORKDIR /app
+
+# Install build dependencies (only in builder)
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libgl1 \
+    libglib2.0-0 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Copy project files and install Python dependencies
+COPY requirements.txt .
+RUN pip install --prefix=/install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+# ----------------------------
+# Stage 2: Final runtime stage
+# ----------------------------
 FROM python:3.12-slim
 
-
-# Set working directory inside the container
 WORKDIR /app
-# Install required system dependencies for OpenCV
+
+# Install only runtime dependencies
 RUN apt-get update && apt-get install -y \
     libgl1 \
     libglib2.0-0 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Copy all project files to /app
-COPY . .
+# Copy installed Python packages from builder
+COPY --from=builder /install /usr/local
 
-# Install dependencies
-# (If you have a requirements.txt file)
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy only app code
+COPY --from=builder /app /app
 
-# Expose port 8080 for Cloud Run
 EXPOSE 8080
 
-# Command to start the app using Gunicorn
 CMD ["gunicorn", "-b", "0.0.0.0:8080", "run:app"]
