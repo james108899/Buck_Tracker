@@ -43,7 +43,7 @@ Thumbs.db
 # Model files
 *.h5
 *.pth
-*.pt
+# *.pt
 *.tflite
 *.onnx
 
