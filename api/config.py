@@ -7,13 +7,13 @@ import google.auth
 import torch
 import os
 
-print("🧩 Checking credentials path:", os.getenv("PROD_GOOGLE_APPLICATION_CREDENTIALS"))
-print("🧩 File exists:", os.path.exists(os.getenv("PROD_GOOGLE_APPLICATION_CREDENTIALS")))
-
 # =========================================================
 # Load environment variables
 # =========================================================
 load_dotenv(override=True)
+
+print(" Checking credentials path:", os.getenv("PROD_GOOGLE_APPLICATION_CREDENTIALS"))
+print(" File exists:", os.path.exists(os.getenv("PROD_GOOGLE_APPLICATION_CREDENTIALS")))
 
 # =========================================================
 # Base directory

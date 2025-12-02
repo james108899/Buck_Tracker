@@ -17,8 +17,8 @@ app = create_app()
 
 
 if __name__ == "__main__":
-    # Open a public ngrok tunnel to the Flask app
-    # public_url = ngrok.connect(5000)
+    # # Open a public ngrok tunnel to the Flask app
+    # public_url = ngrok.connect(8000)
     # print(f" * ngrok tunnel \"{public_url}\" -> \"http://127.0.0.1:5000\"")
 
     # Run the Flask app

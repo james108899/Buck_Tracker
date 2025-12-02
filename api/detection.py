@@ -1,5 +1,6 @@
 import warnings
 warnings.filterwarnings("ignore", message="Corrupt JPEG data")
+from flask_cors import cross_origin
 
 from flask import Blueprint, request, jsonify,url_for,send_from_directory, make_response
 import cv2, uuid, os
@@ -27,35 +28,33 @@ def get_db(buffered=False):
 
 # Serve uploaded images
 @detection_bp.route("/uploads/<filename>")
+@cross_origin()
+
 def serve_upload(filename):
-    # Get full file path
     file_path = os.path.join(UPLOAD_DIR, filename)
-    
-    # Ensure the file exists
+
     if not os.path.exists(file_path):
         return {"error": "File not found"}, 404
 
-    # Serve the file
     response = make_response(send_from_directory(UPLOAD_DIR, filename))
-    
-    #  Add CORS header so browsers can safely display image from ngrok
+
+    # Allow loading from ANY frontend (browser, local file, HTML page)
     response.headers['Access-Control-Allow-Origin'] = '*'
     response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
-    
-    # Optional: set cache control for faster loading
-    response.headers['Cache-Control'] = 'public, max-age=3600'
-    
+    response.headers['Cache-Control'] = 'public, max-age=86400'
+
+    # Required so <img src="..."> works
+    response.headers['Content-Type'] = 'image/jpeg'
+
     return response
+
 # ---------------- Image Upload & Detection ---------------- #
 @detection_bp.route("/process-images", methods=["POST"])
 def process_images():
     logger.info("New request to /process-images")
-    try:
-        user_id = request.form.get("user_id")
-        if not user_id:
-            return {"status": "error", "message": "user_id is required"}, 400
 
+    try:
         if "images_batch" not in request.files:
             return {"status": "error", "message": "No images provided"}, 400
 
@@ -65,67 +64,95 @@ def process_images():
 
         results_list = []
         duplicates = []
+        seen_hashes = set()
         total_detections = 0
-        conn, cursor = get_db()
 
         for img_file in images:
             file_bytes = img_file.read()
             file_hash = hashlib.md5(file_bytes).hexdigest()
 
-            # Check duplicates
-            cursor.execute("SELECT COUNT(*) AS cnt FROM user_detections WHERE user_id=%s AND metadata LIKE %s",
-                           (user_id, f'%{file_hash}%'))
-            if cursor.fetchone()["cnt"] > 0:
+            # Prevent duplicates inside same request
+            if file_hash in seen_hashes:
                 duplicates.append(img_file.filename)
                 continue
+            seen_hashes.add(file_hash)
 
             filename = img_file.filename
             ext = os.path.splitext(filename)[1].lower()
             if ext not in ALLOWED_EXTENSIONS:
-                return {"status": "error", "message": f"Unsupported file type '{ext}'"}, 400
+                return {"status": "error",
+                        "message": f"Unsupported file type '{ext}'"}, 400
 
             np_arr = np.frombuffer(file_bytes, np.uint8)
             frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-            metadata = extract_metadata(file_bytes)
-            metadata["file_hash"] = file_hash
 
-            # Run model
+            # Run detection
             results = model.predict(frame, verbose=False)
             boxes = results[0].boxes
+
             detections = []
+            txt_lines = []
 
             for box in boxes:
-                cls = int(box.cls[0]) if hasattr(box, "cls") else 0
-                conf = float(box.conf[0]) if hasattr(box, "conf") else 0.0
+                cls = int(box.cls[0])
+                conf = float(box.conf[0])
                 x1, y1, x2, y2 = map(int, box.xyxy[0])
-                detected_class = model.names.get(cls, str(cls))
+                class_name = model.names.get(cls, str(cls))
+
+                # For JSON response
                 detections.append({
-                    "class": detected_class,
+                    "class": class_name,
                     "conf": round(conf, 4),
                     "bbox": [x1, y1, x2, y2]
                 })
 
-                cursor.execute("""
-                    INSERT INTO user_detections (user_id, image_name, detected_class, confidence, bbox, metadata)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """, (user_id, filename, detected_class, conf, json.dumps([x1, y1, x2, y2]), json.dumps(metadata)))
+                # --- TXT FILE CONTENT ---
+                # CLASS NAME + BBOX ONLY
+                txt_lines.append(f"{class_name} {x1} {y1} {x2} {y2}")
+
+                # Draw bounding box on image
+                cv2.rectangle(frame, (x1, y1), (x2, y2),
+                              (0, 255, 0), 2)
+                cv2.putText(frame, f"{class_name} {conf:.2f}",
+                            (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX,
+                            0.6, (0, 255, 0), 2)
+
                 total_detections += 1
 
-            # Save image and generate URL
+            # Output filenames
+            output_image_name = f"{os.path.splitext(filename)[0]}_det.jpg"
+            txt_filename = f"{os.path.splitext(filename)[0]}.txt"
+
+            # ===========================
+            # LOCAL STORAGE
+            # ===========================
             if STORAGE_BACKEND == "local":
-                save_path = os.path.join(UPLOAD_DIR, filename)
-                cv2.imwrite(save_path, frame)
-                full_url = url_for(f"{request.blueprint}.serve_upload", filename=filename, _external=True)
+                img_path = os.path.join(UPLOAD_DIR, output_image_name)
+                cv2.imwrite(img_path, frame)
 
+                # Save TXT only when detections exist
+                if len(detections) > 0:
+                    txt_path = os.path.join(UPLOAD_DIR, txt_filename)
+                    with open(txt_path, "w") as f:
+                        f.write("\n".join(txt_lines))
 
+                full_url = url_for(f"{request.blueprint}.serve_upload",
+                                   filename=output_image_name,
+                                   _external=True)
+
+            # ===========================
+            # GOOGLE CLOUD STORAGE
+            # ===========================
             elif STORAGE_BACKEND == "gcs" and gcs_bucket:
-                credentials, project = google.auth.default()
+                credentials, _ = google.auth.default()
 
-                _, buffer = cv2.imencode(ext, frame)
-                blob = gcs_bucket.blob(GCS_UPLOAD_DIR + filename)
-                blob.upload_from_string(buffer.tobytes(), content_type=f"image/{ext.strip('.')}")
+                # Upload image
+                _, buffer = cv2.imencode(".jpg", frame)
+                blob_img = gcs_bucket.blob(GCS_UPLOAD_DIR + output_image_name)
+                blob_img.upload_from_string(buffer.tobytes(),
+                                            content_type="image/jpeg")
 
-                full_url = blob.generate_signed_url(
+                full_url = blob_img.generate_signed_url(
                     version="v2",
                     expiration=timedelta(days=7),
                     method="GET",
@@ -133,31 +160,28 @@ def process_images():
                     credentials=credentials
                 )
 
-                print(" Uploaded to GCS. Temporary URL:", full_url)
+                # Upload TXT only if detections exist
+                if len(detections) > 0:
+                    blob_txt = gcs_bucket.blob(GCS_UPLOAD_DIR + txt_filename)
+                    blob_txt.upload_from_string("\n".join(txt_lines),
+                                                content_type="text/plain")
 
-
-
+            # Final response object
             results_list.append({
-                "image_name": filename,
-                "image_url": full_url,  #  full browser-accessible URL
-                "timestamp": datetime.utcnow().isoformat(),
+                "image_name": output_image_name,
+                "image_url": full_url,
                 "objects": detections,
-                "metadata": metadata
+                "timestamp": datetime.utcnow().isoformat()
             })
 
-        conn.commit()
-        conn.close()
-
+        # Final JSON response
         response = {
             "status": "success",
-            "user_id": user_id,
             "images_processed": len(results_list),
             "total_detections": total_detections,
             "duplicates": duplicates,
             "results": results_list
         }
-        if duplicates:
-            response["message"] = f"Skipped {len(duplicates)} duplicate file(s)"
 
         return jsonify(response), 200
 

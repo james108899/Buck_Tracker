@@ -6,14 +6,18 @@ from .config import logger,DB_CONFIG, SHOPIFY_STORE, SHOPIFY_ACCESS_TOKEN  # imp
 webhook_bp = Blueprint("webhook", __name__)
 
 # ---------------- DB Connection ---------------- #
+db = None
+cursor = None
+
 try:
     db = mysql.connector.connect(**DB_CONFIG)
     cursor = db.cursor()
     logger.info("Connected to MySQL database successfully.")
 except Exception as e:
     logger.error(f"Database connection failed: {e}")
-    raise
-
+    # Do NOT raise — allowing app to run without DB
+    db = None
+    cursor = None
 
 # ---------------- Webhook: New or updated customer ---------------- #
 @webhook_bp.route("/customers", methods=["POST"])
