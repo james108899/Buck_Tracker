@@ -48,4 +48,4 @@ ENV PYTHONDONTWRITEBYTECODE=1
 EXPOSE 8080
 
 # Use multiple workers in a lightweight way
-CMD ["uvicorn", "run:app", "--host", "0.0.0.0", "--port", "8080", ]
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8080"]
