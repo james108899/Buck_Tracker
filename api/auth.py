@@ -1,8 +1,10 @@
-from flask import Blueprint, jsonify
+from fastapi import APIRouter
 
-auth_bp = Blueprint("auth", __name__)
+router = APIRouter()
 
-@auth_bp.route("/status", methods=["GET"])
-def status():
-    # Simple auth placeholder
-    return jsonify({"status": "success", "message": "Auth blueprint active"}), 200
+@router.get("/status")
+async def status():
+    return {
+        "status": "success",
+        "message": "Auth blueprint active"
+    }

@@ -1,25 +1,29 @@
 import warnings
 warnings.filterwarnings("ignore", message="Corrupt JPEG data")
-from api import create_app
-from pyngrok import ngrok
-from dotenv import load_dotenv
+
 import os
-from flask_cors import CORS
-# Load environment variables from .env
+from dotenv import load_dotenv
+from pyngrok import ngrok
+import uvicorn
+
 load_dotenv()
 NGROK_AUTH_TOKEN = os.getenv("NGROK_AUTH_TOKEN")
 
-# Set ngrok auth token correctly
 if NGROK_AUTH_TOKEN:
     ngrok.set_auth_token(NGROK_AUTH_TOKEN)
 
-app = create_app()
 
 
 if __name__ == "__main__":
-    # # Open a public ngrok tunnel to the Flask app
-    # public_url = ngrok.connect(8000)
-    # print(f" * ngrok tunnel \"{public_url}\" -> \"http://127.0.0.1:5000\"")
+    # Optional ngrok tunnel
+    # public_url = ngrok.connect(8080)
+    # print(f' * ngrok tunnel "{public_url}" -> "http://127.0.0.1:8080"')
 
-    # Run the Flask app
-    app.run(host="0.0.0.0", port=8080, debug=False)
+    # Run FastAPI
+    uvicorn.run(
+        "api.main:app",
+        host="0.0.0.0",
+        port=8080,
+        reload=True,
+        log_level="info"
+    )

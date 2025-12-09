@@ -1,11 +1,11 @@
-name: Deploy to Cloud Run
+name: CI/CD - Build & Deploy to Cloud Run
 
 on:
-  push:
+ push:
     branches: ["main"]
 
 jobs:
-  deploy:
+  build-deploy:
     runs-on: ubuntu-latest
 
     steps:
@@ -21,20 +21,43 @@ jobs:
       run: |
         gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev
 
-    - name: Build Docker image
+    - name: Build Docker Image (latest)
       run: |
         docker build -t \
-        ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.ARTIFACT_REGISTRY_REPO }}/myapp:${{ github.sha }} .
+        ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.ARTIFACT_REGISTRY_REPO }}/myapp:latest .
 
-    - name: Push Docker image
+    - name: Push Docker Image (latest)
       run: |
         docker push \
-        ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.ARTIFACT_REGISTRY_REPO }}/myapp:${{ github.sha }}
+        ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.ARTIFACT_REGISTRY_REPO }}/myapp:latest
 
     - name: Deploy to Cloud Run
       run: |
         gcloud run deploy myapp \
-          --image=${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.ARTIFACT_REGISTRY_REPO }}/myapp:${{ github.sha }} \
+          --image=${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.ARTIFACT_REGISTRY_REPO }}/myapp:latest \
           --region=${{ secrets.GCP_REGION }} \
           --platform=managed \
           --allow-unauthenticated
+
+    #  Delete all old images, keep only latest
+    - name: Cleanup old Docker images (keep only latest)
+      run: |
+        echo "Cleaning old images..."
+
+        IMAGE_PATH="${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.ARTIFACT_REGISTRY_REPO }}/myapp"
+
+        DIGESTS=$(gcloud artifacts docker images list $IMAGE_PATH \
+          --format="value(version)" \
+          --sort-by=~updateTime)
+
+        FIRST=true
+
+        for DIGEST in $DIGESTS; do
+          if [ "$FIRST" = true ]; then
+            FIRST=false
+            echo "Keeping $DIGEST"
+          else
+            echo "Deleting $DIGEST"
+            gcloud artifacts docker images delete "$IMAGE_PATH@$DIGEST" --quiet
+          fi
+        done

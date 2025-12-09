@@ -10,3 +10,6 @@ python-dotenv
 google-cloud-storage
 gunicorn
 waitress
+fastapi
+uvicorn
+python-multipart

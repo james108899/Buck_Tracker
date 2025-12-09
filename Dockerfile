@@ -1,42 +1,51 @@
 # ----------------------------
-# Stage 1: Build stage
+# Stage 1: Builder
 # ----------------------------
 FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
-# Install build dependencies (only in builder)
-RUN apt-get update && apt-get install -y \
+# Install only what is needed for building wheels
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    gcc \
     libgl1 \
-    libglib2.0-0 \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy project files and install Python dependencies
+# Copy dependencies file
 COPY requirements.txt .
-RUN pip install --prefix=/install --no-cache-dir -r requirements.txt
 
+# Install dependencies into a temporary folder
+RUN pip install --upgrade pip && \
+    pip install --prefix=/install --no-cache-dir -r requirements.txt
+
+# Copy source
 COPY . .
 
 # ----------------------------
-# Stage 2: Final runtime stage
+# Stage 2: Runtime (minimal size)
 # ----------------------------
 FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install only runtime dependencies
-RUN apt-get update && apt-get install -y \
+# Install minimal runtime libraries only
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
     libglib2.0-0 \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy installed Python packages from builder
+# Copy only installed python deps
 COPY --from=builder /install /usr/local
 
-# Copy only app code
+# Copy only application code (not build deps)
 COPY --from=builder /app /app
+
+# Reduce Python overhead
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
 
 EXPOSE 8080
 
-CMD ["gunicorn", "-b", "0.0.0.0:8080", "run:app"]
+# Use multiple workers in a lightweight way
+CMD ["uvicorn", "run:app", "--host", "0.0.0.0", "--port", "8080", ]
