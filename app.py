@@ -15,15 +15,12 @@ if NGROK_AUTH_TOKEN:
 
 
 if __name__ == "__main__":
-    # Optional ngrok tunnel
-    # public_url = ngrok.connect(8080)
-    # print(f' * ngrok tunnel "{public_url}" -> "http://127.0.0.1:8080"')
 
-    # Run FastAPI
+    #     # Run FastAPI
     uvicorn.run(
         "api.main:app",
         host="0.0.0.0",
-        port=8080,
-        reload=False,
+        port=7860,
+        reload=True,
         log_level="info"
     )

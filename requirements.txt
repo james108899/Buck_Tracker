@@ -1,10 +1,7 @@
-Flask
-flask-cors
 ultralytics
 opencv-python
 numpy
 pillow
-mysql-connector-python
 pyngrok
 python-dotenv
 google-cloud-storage
